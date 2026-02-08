@@ -1,0 +1,8 @@
+# Build artifacts
+/target/
+
+# Source dependencies (created by run.sh)
+/sources/
+
+# Output files (generated)
+/outputs/
