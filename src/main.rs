@@ -7,6 +7,8 @@ use steel_tracker::types::{
 };
 
 fn main() {
+    fs::create_dir_all("outputs").expect("Failed to create outputs directory");
+
     // Load classes.json for registry-based mapping
     let classes_json = ClassesJson::load("sources/SteelMC/steel-core/build/classes.json")
         .expect("Failed to load classes.json");

@@ -5,8 +5,13 @@ cd sources
 
 # Clone the repositories
 if [ ! -d "SteelMC" ]; then
-    # Copy local SteelMC instead of cloning (since it's a local project)
-    cp -r ../../SteelMC .
+    git clone https://github.com/4lve/SteelMC.git
+fi
+
+# Generate Steel's registration files (classes.json -> generated blocks.rs/items.rs)
+if [ ! -f "SteelMC/steel-core/src/behavior/generated/blocks.rs" ]; then
+    echo "Building SteelMC to generate registration files..."
+    (cd SteelMC && cargo build -p steel-core 2>&1 || true)
 fi
 
 if [ ! -d "yarn" ]; then
