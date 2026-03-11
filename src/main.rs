@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
 use steel_tracker::extractors::{parse_java_files_unfiltered, parse_rust_files_unfiltered};
 use steel_tracker::registry_parser::{self, ClassesJson};
 use steel_tracker::types::{
@@ -7,8 +6,6 @@ use steel_tracker::types::{
 };
 
 fn main() {
-    fs::create_dir_all("outputs").expect("Failed to create outputs directory");
-
     // Load classes.json for registry-based mapping
     let classes_json = ClassesJson::load("sources/SteelMC/steel-core/build/classes.json")
         .expect("Failed to load classes.json");
@@ -52,13 +49,7 @@ fn main() {
         all_java_classes.push(c);
     }
 
-    // Write combined java.json
-    let java_json = serde_json::to_string_pretty(&all_java_classes).unwrap();
-    fs::write("outputs/java.json", java_json).unwrap();
-    println!(
-        "Wrote outputs/java.json ({} classes)",
-        all_java_classes.len()
-    );
+    println!("Parsed {} Java classes", all_java_classes.len());
 
     // Parse all Rust classes
     let mut all_rust_classes: Vec<ClassMethods> = Vec::new();
@@ -302,12 +293,15 @@ fn main() {
 
     let result = AnalysisResult { classes: tracking };
 
-    let analysis_json = serde_json::to_string_pretty(&result).unwrap();
-    fs::write("outputs/analysis.json", analysis_json).unwrap();
-    println!(
-        "Wrote outputs/analysis.json ({} classes)",
-        result.classes.len()
-    );
+    println!("Analyzed {} classes", result.classes.len());
+
+    // Send to DB if CI env vars are set
+    if std::env::var("CONVEX_SITE_URL").is_ok() {
+        if let Err(e) = steel_tracker::script::run(&result) {
+            eprintln!("DB ingestion failed: {}", e);
+            std::process::exit(1);
+        }
+    }
 
     // Summary by type
     println!("\n=== Summary by Type ===");

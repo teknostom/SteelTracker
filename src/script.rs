@@ -1,7 +1,7 @@
 use crate::types::{AnalysisResult, ImplementationStatus};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{env, fs, process::Command};
+use std::{env, process::Command};
 
 // ─── API DTOs (specific to the Convex HTTP protocol) ─────────────────────────
 
@@ -91,22 +91,20 @@ fn curl_post_json(
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
-/// Reads `outputs/analysis.json` produced by the tracker and ingests it into
-/// Convex. Called by `main` after the analysis phase completes.
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// Ingests the analysis result into Convex. Called by `main` after the
+/// analysis phase completes. Only runs when CI env vars are set.
+pub fn run(data: &AnalysisResult) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Environment validation
-    let convex_site_url = env::var("CONVEX_SITE_URL").expect("Missing env: CONVEX_SITE_URL");
-    let github_sha = env::var("GITHUB_SHA").expect("Missing env: GITHUB_SHA");
-    let github_ref_name = env::var("GITHUB_REF_NAME").expect("Missing env: GITHUB_REF_NAME");
-    let mc_version = env::var("MC_VERSION").expect("Missing env: MC_VERSION");
-    let ingest_password = env::var("INGEST_PASSWORD").expect("Missing env: INGEST_PASSWORD");
+    let convex_site_url = env::var("CONVEX_SITE_URL")?;
+    let github_sha = env::var("GITHUB_SHA")?;
+    let github_ref_name = env::var("GITHUB_REF_NAME")?;
+    let mc_version = env::var("MC_VERSION")?;
+    let ingest_password = env::var("INGEST_PASSWORD")?;
     let pr_number: Option<u32> = env::var("PR_NUMBER").ok().and_then(|v| v.parse().ok());
 
-    // 2. Read tracker output & hash
-    // `outputs/analysis.json` is written by main.rs relative to the project root.
-    let raw = fs::read_to_string("outputs/analysis.json")?;
+    // 2. Hash the analysis data
+    let raw = serde_json::to_string(data)?;
     let content_hash = to_hex(&Sha256::digest(raw.as_bytes()));
-    let data: AnalysisResult = serde_json::from_str(&raw)?;
 
     // 3. Duplicate check
     let mut hash_url = format!("{}/last-hash?branch={}", convex_site_url, github_ref_name);
@@ -125,16 +123,16 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Map codebase types → API DTOs and ingest
     let classes: Vec<ApiClass> = data
         .classes
-        .into_iter()
+        .iter()
         .map(|cls| ApiClass {
-            class_name: cls.class_name,
-            class_type: cls.class_type,
+            class_name: cls.class_name.clone(),
+            class_type: cls.class_type.clone(),
             percentage_implemented: cls.percentage_implemented,
             methods: cls
                 .methods
-                .into_iter()
+                .iter()
                 .map(|m| ApiMethod {
-                    method_name: m.method_name,
+                    method_name: m.method_name.clone(),
                     status: match m.status {
                         ImplementationStatus::Implemented => "Implemented".to_string(),
                         ImplementationStatus::NotImplemented => "NotImplemented".to_string(),
